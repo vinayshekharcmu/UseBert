@@ -52,6 +52,7 @@ def test(device, tokenizer, test_iterator, max_length, model):
     model.eval()
     total_corrects = 0
     total = 0
+
     for batch in tqdm(test_iterator, desc="Test batches"):
         input_ids, attention_mask, token_type_ids, labels = get_classifier_input(tokenizer, batch, device,
                                                                                  max_length)
@@ -70,6 +71,7 @@ def test(device, tokenizer, test_iterator, max_length, model):
 
 def train_test(device, num_epochs, tokenizer, train_iterator, test_iterator, max_length):
     model = NLIClassifier(device)
+    model = nn.DataParallel(model)
     model = model.to(device)
     loss_fn = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=5e-5, eps=1e-8)
@@ -87,7 +89,7 @@ def train_test(device, num_epochs, tokenizer, train_iterator, test_iterator, max
             loss.backward()
             optimizer.step()
             steps += 1
-            if steps % 1000 == 0:
+            if steps % 10 == 0:
                 print(running_loss/ 1000)
                 running_loss = 0
                 test(device, tokenizer, test_iterator, max_length, model)
