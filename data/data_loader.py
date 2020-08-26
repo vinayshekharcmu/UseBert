@@ -15,7 +15,10 @@ def read_file(file_name):
             examples.append([sentence1, sentence2, gold_label])
     return examples
 
-
+def read_text_file(file_name):
+    with open(file_name) as f:
+        lines = f.readlines()
+    return lines
 
 class NLIDataset(Dataset):
 
@@ -32,6 +35,18 @@ class NLIDataset(Dataset):
         gold_label = self.examples[index][2]
 
         return {SENTENCE_PAIR : [sentence1, sentence2], LABEL : gold_label}
+
+
+class LineByLineDataset(Dataset):
+
+    def __init__(self, file_name):
+        self.examples = read_text_file(file_name)
+
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, index):
+        return {SENTENCE: self.examples[index]}
 
 if __name__ == "__main__":
     read_file("../../Data/snli_1.0/snli_1.0_test.jsonl")
