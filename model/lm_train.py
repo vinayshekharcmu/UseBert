@@ -5,7 +5,11 @@ from data.data_loader import LineByLineDataset
 import torch.nn as nn
 import argparse
 from config import *
+from tensorboardX import SummaryWriter
+import uuid
+from tqdm import tqdm
 
+## Credit to the huggingface library for this function
 def mask_tokens(inputs: torch.Tensor, tokenizer: PreTrainedTokenizer):
     """ Prepare masked tokens inputs/labels for masked language modeling: 80% MASK, 10% random, 10% original. """
 
@@ -39,11 +43,12 @@ def mask_tokens(inputs: torch.Tensor, tokenizer: PreTrainedTokenizer):
     return inputs, labels
 
 
-def train(model: BertForMaskedLM, tokenizer, train_iterator, device, steps):
+def train(model: BertForMaskedLM, tokenizer, train_iterator, eval_iterator, device, steps, summary_writer):
     model.train()
     loss_fn = nn.CrossEntropyLoss()
-    optimizer = AdamW(model.parameters())
+    optimizer = AdamW(model.parameters(), lr=5e-5)
     running_loss = 0
+    total_valid_preds = 0
     for batch in train_iterator:
         sentences = batch[SENTENCE]
         inputs = tokenizer.batch_encode_plus(sentences, pad_to_max_length = True, truncate = True)
@@ -60,27 +65,49 @@ def train(model: BertForMaskedLM, tokenizer, train_iterator, device, steps):
         predictions = predictions.view(-1, predictions.shape[2])
         labels = labels.view(-1)
         loss = loss_fn( predictions , labels)
-        running_loss += loss
-
+        running_loss += loss.item()
+        num_valid_preds = (labels != -100).long().sum().detach().item()
+        total_valid_preds += num_valid_preds
         optimizer.zero_grad()
         loss.backward()
         steps += 1
         optimizer.step()
-
         if steps % 100 == 0:
-            print(running_loss / 100)
+            summary_writer.add_scalar("Train_LOSS", running_loss / total_valid_preds, steps)
+            eval(model, tokenizer, eval_iterator, device, summary_writer, steps, loss_fn)
             running_loss = 0
+            total_valid_preds = 0
 
-
-
-def eval(model, tokenizer, eval_iterator, device):
+def eval(model, tokenizer, eval_iterator, device, summary_writer: SummaryWriter, steps, loss_fn):
     model.eval()
+    running_loss = 0
+    total_valid_preds = 0
+    for batch in tqdm(eval_iterator, desc= "EVAL"):
+        sentences = batch[SENTENCE]
+        inputs = tokenizer.batch_encode_plus(sentences, pad_to_max_length=True, truncate=True)
+        attention_mask = torch.tensor(inputs["attention_mask"])
+        token_type_ids = torch.tensor(inputs["token_type_ids"])
+        input_ids, labels = mask_tokens(torch.tensor(inputs["input_ids"]), tokenizer)
 
+        input_ids = input_ids.to(device)
+        attention_mask = attention_mask.to(device)
+        token_type_ids = token_type_ids.to(device)
+        labels = labels.to(device)
+        num_valid_preds = (labels != -100).long().sum().detach().item()
+        total_valid_preds += num_valid_preds
 
-def train_iters(num_epochs, model, tokenizer, train_iterator, eval_iterator, device):
+        predictions = model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)[0]
+        predictions = predictions.view(-1, predictions.shape[2])
+        labels = labels.view(-1)
+        loss = loss_fn(predictions, labels)
+        running_loss += loss.item()
+
+    summary_writer.add_scalar("Eval_LOSS", running_loss/ total_valid_preds, steps)
+
+def train_iters(num_epochs, model, tokenizer, train_iterator, eval_iterator, device, summary_writer):
     steps = 0
     for i in range(num_epochs):
-        steps = train(model, tokenizer, train_iterator, device, steps)
+        steps = train(model, tokenizer, train_iterator, eval_iterator, device, steps, summary_writer)
 
 
 if __name__ == "__main__":
@@ -102,7 +129,9 @@ if __name__ == "__main__":
     device = torch.device("cuda:0")
 
     model.to(device)
+    dir_path = '../../saved_models/' + str(uuid.uuid4()) + '/'
+    summary_writer = SummaryWriter(dir_path, flush_secs = 1)
 
-    train_iters(args.num_epochs, model, tokenizer, train_iterator, eval_iterator, device)
+    train_iters(args.num_epochs, model, tokenizer, train_iterator, eval_iterator, device, summary_writer)
 
 
