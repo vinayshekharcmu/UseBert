@@ -17,3 +17,6 @@ In order to demonstrate how to fine tune the LM, I have used the Wikitext-2 data
 
 ## To pretrain bert on a specific domain, run the following command:
 `python -m model.lm_train --train_file ../../Data/wiki-preprocessed/wiki.train.tokens --test_file ../../Data/wiki-preprocessed/wiki.test.tokens`
+
+![Alt text](./Train_LOSS.svg)
+<img src="./Eval_LOSS.svg">
