@@ -11,9 +11,9 @@ I have used DataParallel to speed up the process of training. One should ideally
 
 ## Prepare the Data
 
-In order to demonstrate how to fine tune the LM, I have used the Wikitext-2 datatset (https://blog.einstein.ai/the-wikitext-long-term-dependency-language-modeling-dataset/). Preprocess the dataset by running the following command:
+In order to demonstrate how to fine tune the LM, I have used the Wikitext-2 datatset (https://blog.einstein.ai/the-wikitext-long-term-dependency-language-modeling-dataset/). Download the daataset and unzip the folder. Pass the path of the unzipped folder to the preprocess code. Preprocess the dataset by running the following command:
 
-``
+`python -m preprocess.wikitext --wiki-input-path ../../Data/wikitext-2/ --wiki-output-path ../../Data/wiki-preprocessed/`
 
 ## To pretrain bert on a specific domain, run the following command:
 `python -m model.lm_train --train_file ../../Data/wiki-preprocessed/wiki.train.tokens --test_file ../../Data/wiki-preprocessed/wiki.test.tokens`
